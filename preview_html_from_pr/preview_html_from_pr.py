@@ -1,4 +1,3 @@
-import argparse
 import os
 import tarfile
 import tempfile
@@ -11,11 +10,6 @@ import requests
 from github import Auth, Github
 
 
-REPO = "queens-py/queens"
-WORKFLOW_NAME = "build_documentation"
-ARTIFACT_NAME = "github-pages"
-
-
 def wait_for_keyboard_interrupt():
     print("Press Ctrl+C to delete the html preview")
     try:
@@ -25,7 +19,7 @@ def wait_for_keyboard_interrupt():
         pass
 
 
-def get_artifact(PR_number, zip_path, token):
+def get_artifact(pr_number, zip_path, token, repo, workflow_name, artifact_name):
     def download_artifact(url, file_name, **kwargs):
         print(f"\nDownloading artifact to {file_name}")
         response = requests.get(url, timeout=5, **kwargs)
@@ -40,9 +34,9 @@ def get_artifact(PR_number, zip_path, token):
     auth = Auth.Token(token)
     gh = Github(auth=auth)
 
-    repo = gh.get_repo(REPO)
+    repo = gh.get_repo(repo)
 
-    pull_request = repo.get_pull(PR_number)
+    pull_request = repo.get_pull(pr_number)
 
     print("\n")
     print(pull_request)
@@ -53,7 +47,7 @@ def get_artifact(PR_number, zip_path, token):
     done = False
     for run in sorted_workflows:
         if (
-            run.name != WORKFLOW_NAME
+            run.name != workflow_name
             or run.status != "completed"
             or run.conclusion != "success"
         ):
@@ -63,7 +57,7 @@ def get_artifact(PR_number, zip_path, token):
         sorted_artifacts = sorted(artifacts, key=lambda a: a.created_at)
 
         for artifact in sorted_artifacts:
-            if artifact.name == ARTIFACT_NAME:
+            if artifact.name == artifact_name:
                 print(
                     f"Using Workflow: {run.name}\n Run ID: {run.id}\n Status: {run.status}\n Conclusion: {run.conclusion}\n Date {run.created_at}"
                 )
@@ -93,7 +87,7 @@ def extract_html(zip_path, tmp_dir):
         tar.extractall(tmp_dir)
 
 
-def preview_html(PR_number, token):
+def preview_html(pr_number, token, repo, workflow_name, artifact_name):
     with tempfile.TemporaryDirectory() as tmp_dir:
 
         tmp_dir = Path(tmp_dir)
@@ -106,11 +100,11 @@ def preview_html(PR_number, token):
 
         print("-" * 80)
         print("Getting the artifact.")
-        get_artifact(PR_number, zip_path, token)
+        get_artifact(pr_number, zip_path, token, repo, workflow_name, artifact_name)
         print("-" * 80)
 
         print("-" * 80)
-        print("Extracting the documentation.")
+        print("Extracting the artifact.")
         extract_html(zip_path, tmp_dir)
         print("-" * 80)
 
@@ -122,12 +116,3 @@ def preview_html(PR_number, token):
         print("Deleting files")
 
         print("Bye bye.")
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Get HTML documentation for preview.")
-    parser.add_argument("pr", type=int, help="The ID of the pull request.")
-    parser.add_argument("token", type=str, help="Github token.")
-    args = parser.parse_args()
-
-    preview_html(args.pr, args.token)
